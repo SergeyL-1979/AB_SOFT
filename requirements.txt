@@ -8,3 +8,4 @@ pydantic
 databases
 asyncpg
 watchdog
+psycopg2-binary
