@@ -1,0 +1,10 @@
+requests
+fastapi
+SQLAlchemy
+uvicorn
+gunicorn
+Pillow
+pydantic
+databases
+asyncpg
+watchdog
