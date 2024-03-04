@@ -1,4 +1,7 @@
+import os
 from typing import List
+
+import requests
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String
@@ -7,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 # Подключение к базе данных
 # DATABASE_URL = "mysql://username:password@localhost/dbname"
+# DATABASE_URL = "mysql+pymysql://username:password@localhost/dbname"
 DATABASE_URL = "postgresql://postgres:wialon@localhost/avsoft"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -55,6 +59,19 @@ def analyze_text(session, text: str):
 
     session.commit()
 
+    # Ваша логика анализа текста
+    # Например, отправка текста на анализ через FastAPI
+    response = requests.post("http://localhost:8000/parse/", json={"text": text})
+    print(response.json())
+
+def process_folder(folder_path: str):
+    for root, dirs, files in os.walk(folder_path):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
+            with open(file_path, "r") as file:
+                text = file.read()
+                analyze_text(text)
+
 
 # Метод обработки сообщений из очереди "Parsing"
 def process_parsing_message(message: ParsingMessage):
@@ -65,6 +82,9 @@ def process_parsing_message(message: ParsingMessage):
 
 @app.post("/parse/")
 async def parse(messages: List[ParsingMessage]):
+    # if __name__ == "__main__":
+    folder_path = "soft/analyzer/volume"  # Укажите путь к папке, которую нужно обработать
+    process_folder(folder_path)
     for message in messages:
         process_parsing_message(message)
     return {"message": "Parsing completed"}
