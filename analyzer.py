@@ -64,6 +64,7 @@ def analyze_text(session, text: str):
     response = requests.post("http://localhost:8000/parse/", json={"text": text})
     print(response.json())
 
+
 def process_folder(folder_path: str):
     for root, dirs, files in os.walk(folder_path):
         for file_name in files:
