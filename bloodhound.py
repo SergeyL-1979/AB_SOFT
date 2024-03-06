@@ -1,9 +1,33 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, HTTPException
 import os
 import shutil
 import json
+import logging
+
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 app = FastAPI()
+
+# Настройка логгирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Примеры обработчиков для вывода логов в консоль и файл
+# Обработчик для вывода логов в консоль
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+
+# Обработчик для вывода логов в файл
+file_handler = logging.FileHandler('app.log')
+file_handler.setLevel(logging.ERROR)  # Только ошибки будут записываться в файл
+file_handler.setLevel(logging.INFO)  # Только ошибки будут записываться в файл
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+# logger.info("Сервер запущен и мониторит папку")
 
 # Путь к папке для обработки файлов
 folder_path = "soft/watched/folder"
@@ -23,35 +47,46 @@ def move_file(file_path, destination):
         raise HTTPException(status_code=500, detail=f"Ошибка перемещения файла: {str(e)}")
 
 
-# Функция для обработки загруженного файла
-def process_file(file: UploadFile):
-    # Создаем путь к файлу
-    file_path = os.path.join(folder_path, file.filename)
-
-    # Сохраняем файл
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
+# Функция для обработки файла
+def process_file(file_path):
     # Проверяем тип файла
-    if file.content_type == "text/plain":
+    if file_path.endswith(".txt"):  # Предположим, что txt - это текстовый формат
         # Перемещаем текстовый файл в volume "Анализатора"
         move_file(file_path, analyzer_volume)
         # Отправляем JSON-сообщение через очередь "Parsing"
-        message = {"file_path": os.path.join(analyzer_volume, file.filename)}
+        message = {"file_path": os.path.join(analyzer_volume, os.path.basename(file_path))}
         # Здесь должен быть код для отправки сообщения в очередь "Parsing"
     else:
         # Перемещаем не текстовый файл в volume "Ошибочников"
         move_file(file_path, error_volume)
         # Отправляем сообщение в "Errors"
-        message = {"file_path": os.path.join(error_volume, file.filename)}
+        message = {"file_path": os.path.join(error_volume, os.path.basename(file_path))}
         # Здесь должен быть код для отправки сообщения в "Errors"
 
-    return {"message": "Файл успешно обработан"}
+
+# Наследуемся от класса FileSystemEventHandler для обработки событий файловой системы
+class MyHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        if not event.is_directory:  # Игнорируем события о создании папок
+            process_file(event.src_path)
 
 
-@app.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
-    return process_file(file)
+# Создаем экземпляр наблюдателя
+observer = Observer()
+observer.schedule(MyHandler(), folder_path, recursive=False)
+observer.start()
+
+
+@app.on_event("shutdown")
+def shutdown_event():
+    observer.stop()
+    observer.join()
+
+
+@app.get("/")
+async def index():
+    logger.info("Сервер запущен и мониторит папку")
+    return {"message": "Сервер запущен и мониторит папку"}
 
 # ========================================================
 # import os
