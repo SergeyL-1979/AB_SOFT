@@ -1,6 +1,8 @@
 requests
 fastapi
+python-dotenv
 SQLAlchemy
+PyYAML
 uvicorn
 gunicorn
 Pillow
